@@ -201,6 +201,13 @@ function nakedBaselineCard() {
         slot.weaponTypeId = 'none';
       }
     }
+    // If the previously chosen skill weapon slot is no longer available for this class (fewer slots)
+    // or points to a now-empty slot, fall back to Auto so the damage number stays sensible.
+    if (build.skillWeaponSlotId) {
+      const newCls = classFor(build);
+      const idx = parseInt(build.skillWeaponSlotId.slice(3), 10);
+      if (!isFinite(idx) || idx < 1 || idx > newCls.weaponSlots) build.skillWeaponSlotId = null;
+    }
     persist(build);
     mount();
   });
@@ -208,6 +215,29 @@ function nakedBaselineCard() {
   topGrid.append(field('Skill Damage % at rank 1 (e.g. 115 for Blessed Hammer)', pctInput(() => build.skillDamagePct, v => build.skillDamagePct = v, { step: 1, w: 'w-full' })));
   topGrid.append(field('Skill Ranks (naked, usually 15)', numInput(() => build.totalSkillRanks, v => build.totalSkillRanks = v, { w: 'w-full' })));
   topGrid.append(field(`${cls.mainStat} (naked, no gear/charms)`, numInput(() => build.baseMainStat, v => build.baseMainStat = v, { w: 'w-full' })));
+
+  // Skill weapon selector. In D4 an active skill consumes a SPECIFIC weapon's base damage
+  // (e.g. Hammer of the Ancients uses the 2H bludgeoning slot, not the dual-wielded 1H swords).
+  // "Auto" preserves the legacy spreadsheet behavior of summing baseDamage across all equipped weapons,
+  // which is correct for most single-weapon classes and keeps existing share URLs unchanged.
+  const weaponSlots = build.slots.filter(s => s.id.startsWith('wep'));
+  const equippedWeaponSlots = weaponSlots.filter((_s, i) => i < cls.weaponSlots);
+  const skillWepSel = el('select', { class: inputCls() + ' w-full', title: 'Which equipped weapon\u2019s base damage drives this skill. \u201CAuto\u201D sums all weapons (legacy behavior, fine for single-weapon classes). Pick a specific slot for skills like Hammer of the Ancients that always use one weapon.' }) as HTMLSelectElement;
+  const autoOpt = el('option', { value: '' }, 'Auto (sum all equipped)');
+  if (build.skillWeaponSlotId == null) autoOpt.setAttribute('selected', '');
+  skillWepSel.append(autoOpt);
+  for (const ws of equippedWeaponSlots) {
+    const wt = weaponTypeById(ws.weaponTypeId ?? 'none');
+    const label = wt.id === 'none' ? `${ws.name} (empty)` : `${ws.name} \u2014 ${wt.label}`;
+    const opt = el('option', { value: ws.id }, label);
+    if (build.skillWeaponSlotId === ws.id) opt.setAttribute('selected', '');
+    skillWepSel.append(opt);
+  }
+  skillWepSel.addEventListener('change', () => {
+    build.skillWeaponSlotId = skillWepSel.value === '' ? null : skillWepSel.value;
+    afterInput();
+  });
+  topGrid.append(field('Skill weapon (which weapon drives this skill\u2019s damage)', skillWepSel));
   card.append(topGrid);
 
   // Replace the long single-paragraph subtitle with bullet steps + a reference screenshot
@@ -645,7 +675,7 @@ function slotBlock(slot: Slot) {
       // Remember the last user-entered value so unchecking + re-checking the gem doesn't reset
       // it back to defaultValue. Seeded from any existing affix value when the row first renders.
       let lastValue = findGem()?.value ?? defaultValue;
-      const gemRow = el('label', { class: 'flex items-center gap-2 mb-1 cursor-pointer text-sm select-none' });
+      const gemRow = el('div', { class: 'flex items-center gap-2 mb-1 text-sm' });
       const cb = el('input', { type: 'checkbox', class: 'accent-amber-500' }) as HTMLInputElement;
       cb.checked = !!findGem();
       gemRow.append(cb);

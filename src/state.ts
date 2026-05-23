@@ -100,6 +100,7 @@ function serialToBuild(j: any): Build {
     weaponSpeedOverride: j.weaponSpeedOverride == null ? null : validNumber(j.weaponSpeedOverride, 0),
     disableCrit: !!j.disableCrit,
     enemyDamageFactor: validNumber(j.enemyDamageFactor, 0.2),
+    skillWeaponSlotId: (typeof j.skillWeaponSlotId === 'string' && /^wep\d+$/.test(j.skillWeaponSlotId)) ? j.skillWeaponSlotId : null,
     slots: migrateSlotsAndExtras(j),
     additiveLines: rehydrateLines(Array.isArray(j.additiveLines) ? j.additiveLines : undefined),
     snapshot: j.snapshot ? safeSerialToBuild(j.snapshot) : null,

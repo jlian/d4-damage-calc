@@ -101,8 +101,84 @@ function runReferenceTest(): boolean {
 
 export { runReferenceTest };
 
+// ---- Skill weapon slot test (Reddit feedback #2) ----
+// Verifies that:
+//   - skillWeaponSlotId = null (auto) sums baseDamage across all equipped weapons (legacy behavior).
+//   - skillWeaponSlotId = 'wepN' uses only that slot's baseDamage + its own WEPDMG affixes.
+//   - WEPDMG_PCT and other global affixes still apply in both modes (sanity: speed is averaged in both modes).
+import { computeWeaponDamage, weaponTypeById } from './calc';
+
+function runSkillWeaponSlotTest(): boolean {
+  // Two-weapon Necromancer build: 2H scythe in wep1 (4607), 1H sword in wep2 (1884). Necro has weaponSlots=2.
+  const b: Build = {
+    ...DEFAULT_BUILD,
+    classId: 'Necromancer',
+    skillWeaponSlotId: null,
+    slots: [
+      ...DEFAULT_BUILD.slots.filter(s => !s.id.startsWith('wep')).map(s => ({ ...s, affixes: [] })),
+      { id: 'wep1', name: 'Weapon 1', weaponTypeId: '2h_scythe', affixes: [{ bucket: 'WEPDMG', value: 100 }] },
+      { id: 'wep2', name: 'Weapon 2', weaponTypeId: '1h_sword',  affixes: [{ bucket: 'WEPDMG', value: 50  }] },
+      { id: 'wep3', name: 'Weapon 3', weaponTypeId: 'none',      affixes: [] },
+      { id: 'wep4', name: 'Weapon 4', weaponTypeId: 'none',      affixes: [] },
+    ],
+  };
+
+  const scythe = weaponTypeById('2h_scythe').baseDamage; // 4607
+  const sword  = weaponTypeById('1h_sword').baseDamage;  // 1884
+
+  // Auto: 4607 + 100 + 1884 + 50 = 6641
+  const auto = computeWeaponDamage(b);
+  const expectedAuto = scythe + 100 + sword + 50;
+  const okAuto = auto.dmg === expectedAuto;
+  console.log(`Auto sum: got ${auto.dmg}, expected ${expectedAuto} ${okAuto ? '\u2705' : '\u274C'}`);
+
+  // Explicit wep1 (scythe + 100 only): 4707. wep2's +50 WEPDMG is excluded.
+  const b1: Build = { ...b, skillWeaponSlotId: 'wep1' };
+  const only1 = computeWeaponDamage(b1);
+  const expected1 = scythe + 100;
+  const ok1 = only1.dmg === expected1;
+  console.log(`Explicit wep1: got ${only1.dmg}, expected ${expected1} ${ok1 ? '\u2705' : '\u274C'}`);
+
+  // Explicit wep2 (sword + 50 only): 1934.
+  const b2: Build = { ...b, skillWeaponSlotId: 'wep2' };
+  const only2 = computeWeaponDamage(b2);
+  const expected2 = sword + 50;
+  const ok2 = only2.dmg === expected2;
+  console.log(`Explicit wep2: got ${only2.dmg}, expected ${expected2} ${ok2 ? '\u2705' : '\u274C'}`);
+
+  // Speed should still average across BOTH equipped weapons in either mode (the displayed attack rate
+  // in-game reflects what you're swinging, not the skill slot). 2h_scythe=0.9, 1h_sword=1.1, avg=1.0.
+  const expectedSpeed = (0.9 + 1.1) / 2;
+  const okSpeed = Math.abs(auto.speed - expectedSpeed) < 1e-9 && Math.abs(only1.speed - expectedSpeed) < 1e-9;
+  console.log(`Speed avg preserved: ${okSpeed ? '\u2705' : '\u274C'}`);
+
+  // Barbarian dual-2H bonus should only fire in auto mode.
+  const barb: Build = {
+    ...DEFAULT_BUILD,
+    classId: 'Barbarian',
+    skillWeaponSlotId: null,
+    slots: [
+      ...DEFAULT_BUILD.slots.filter(s => !s.id.startsWith('wep')).map(s => ({ ...s, affixes: [] })),
+      { id: 'wep1', name: 'Weapon 1', weaponTypeId: '2h_mace',   affixes: [] },
+      { id: 'wep2', name: 'Weapon 2', weaponTypeId: '2h_sword',  affixes: [] },
+      { id: 'wep3', name: 'Weapon 3', weaponTypeId: 'none',      affixes: [] },
+      { id: 'wep4', name: 'Weapon 4', weaponTypeId: 'none',      affixes: [] },
+    ],
+  };
+  const barbAuto = computeWeaponDamage(barb); // (4607 + 4146) * 2 = 17506
+  const barbExpl = computeWeaponDamage({ ...barb, skillWeaponSlotId: 'wep1' }); // just 4607, no x2
+  const okBarb = barbAuto.dmg === (4607 + 4146) * 2 && barbExpl.dmg === 4607;
+  console.log(`Barb dual-2H bonus auto-only: auto=${barbAuto.dmg}, explicit=${barbExpl.dmg} ${okBarb ? '\u2705' : '\u274C'}`);
+
+  return okAuto && ok1 && ok2 && okSpeed && okBarb;
+}
+
+export { runSkillWeaponSlotTest };
+
 // Run when invoked directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const ok = runReferenceTest();
-  process.exit(ok ? 0 : 1);
+  const ok1 = runReferenceTest();
+  console.log('---');
+  const ok2 = runSkillWeaponSlotTest();
+  process.exit(ok1 && ok2 ? 0 : 1);
 }
