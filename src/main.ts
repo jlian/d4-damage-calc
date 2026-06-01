@@ -10,6 +10,7 @@ import {
   type Build, type Bucket, type Slot,
 } from './calc';
 import { loadInitialBuild, persist, exportJson, importJson, cloneBuild, buildShareUrl, importJsonObject } from './state';
+import { FIELD_HELP, helpIcon } from './help';
 
 let build: Build = loadInitialBuild();
 
@@ -89,9 +90,15 @@ function textInput(getValue: () => string, setValue: (v: string) => void, opts: 
   return inp;
 }
 
-function field(label: string, control: HTMLElement) {
+function field(label: string, control: HTMLElement, helpKey?: string) {
   const wrap = el('label', { class: 'block' });
-  wrap.append(el('div', { class: 'text-xs text-zinc-500 mb-1' }, label));
+  const labelRow = el('div', { class: 'text-xs text-zinc-500 mb-1 flex items-center' });
+  labelRow.append(label);
+  if (helpKey) {
+    const icon = helpIcon(helpKey);
+    if (icon) labelRow.append(icon);
+  }
+  wrap.append(labelRow);
   control.classList.add('w-full');
   wrap.append(control);
   return wrap;
@@ -211,10 +218,10 @@ function nakedBaselineCard() {
     persist(build);
     mount();
   });
-  topGrid.append(field('Class', classSel));
-  topGrid.append(field('Skill Damage % at rank 1 (e.g. 115 for Blessed Hammer)', pctInput(() => build.skillDamagePct, v => build.skillDamagePct = v, { step: 1, w: 'w-full' })));
-  topGrid.append(field('Skill Ranks (naked, usually 15)', numInput(() => build.totalSkillRanks, v => build.totalSkillRanks = v, { w: 'w-full' })));
-  topGrid.append(field(`${cls.mainStat} (naked, no gear/charms)`, numInput(() => build.baseMainStat, v => build.baseMainStat = v, { w: 'w-full' })));
+  topGrid.append(field('Class', classSel, 'class'));
+  topGrid.append(field('Skill Damage % at rank 1 (e.g. 115 for Blessed Hammer)', pctInput(() => build.skillDamagePct, v => build.skillDamagePct = v, { step: 1, w: 'w-full' }), 'skillDamagePct'));
+  topGrid.append(field('Skill Ranks (naked, usually 15)', numInput(() => build.totalSkillRanks, v => build.totalSkillRanks = v, { w: 'w-full' }), 'totalSkillRanks'));
+  topGrid.append(field(`${cls.mainStat} (naked, no gear/charms)`, numInput(() => build.baseMainStat, v => build.baseMainStat = v, { w: 'w-full' }), 'baseMainStat'));
 
   // Skill weapon selector. In D4 an active skill consumes a SPECIFIC weapon's base damage
   // (e.g. Hammer of the Ancients uses the 2H bludgeoning slot, not the dual-wielded 1H swords).
@@ -237,7 +244,7 @@ function nakedBaselineCard() {
     build.skillWeaponSlotId = skillWepSel.value === '' ? null : skillWepSel.value;
     afterInput();
   });
-  topGrid.append(field('Skill weapon (which weapon drives this skill\u2019s damage)', skillWepSel));
+  topGrid.append(field('Skill weapon (which weapon drives this skill\u2019s damage)', skillWepSel, 'skillWeaponSlot'));
   card.append(topGrid);
 
   // Replace the long single-paragraph subtitle with bullet steps + a reference screenshot
@@ -267,13 +274,18 @@ function nakedBaselineCard() {
   // so the inputs all line up consistently.
   const grid = el('div', { class: 'grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2' });
   const critRow = el('div', { class: 'flex items-center gap-2' });
-  critRow.append(el('div', { class: 'flex-1 text-xs text-zinc-400' }, 'Critical Strike Chance'));
+  const critLabel = el('div', { class: 'flex-1 text-xs text-zinc-400 flex items-center' }, 'Critical Strike Chance');
+  { const icon = helpIcon('baseCritChance'); if (icon) critLabel.append(icon); }
+  critRow.append(critLabel);
   critRow.append(pctInput(() => build.baseCritChance, v => build.baseCritChance = v, { w: 'w-24', step: 0.5 }));
   critRow.append(el('span', { class: 'text-zinc-600 text-xs' }, '%'));
   grid.append(critRow);
   for (const line of build.additiveLines) {
     const row = el('div', { class: 'flex items-center gap-2' });
-    row.append(el('div', { class: 'flex-1 text-xs text-zinc-400' }, line.label));
+    const labelDiv = el('div', { class: 'flex-1 text-xs text-zinc-400 flex items-center' }, line.label);
+    const icon = helpIcon('add_' + line.id);
+    if (icon) labelDiv.append(icon);
+    row.append(labelDiv);
     row.append(pctInput(() => line.value, v => line.value = v, { w: 'w-24' }));
     row.append(el('span', { class: 'text-zinc-600 text-xs' }, '%'));
     grid.append(row);
@@ -281,7 +293,9 @@ function nakedBaselineCard() {
   card.append(grid);
 
   // Custom additive entries: for additive stat lines that exist on the stats sheet but aren't in our default list (e.g., Rogue's Damage with Imbued, Damage vs Distant)
-  card.append(el('h4', { class: 'text-xs uppercase tracking-wide text-zinc-500 mt-4 mb-2' }, 'Other additive lines'));
+  const otherAddHeader = el('h4', { class: 'text-xs uppercase tracking-wide text-zinc-500 mt-4 mb-2 flex items-center' }, 'Other additive lines');
+  { const icon = helpIcon('add_custom'); if (icon) otherAddHeader.append(icon); }
+  card.append(otherAddHeader);
   card.append(el('p', { class: 'text-xs text-zinc-500 mb-2' }, 'For additive damage lines on your in-game stats sheet that aren’t in the default list above (like “Damage vs Distant”, “Damage vs Healthy”, “Damage vs Crowd Controlled”, etc.). Same rule: copy the BOTTOM tooltip number from the stats sheet. Anything you add here is treated as always-on and gets included in the result, even if it’s technically conditional in-game.'));
   const paragonSlot = build.slots.find(s => s.id === 'paragon');
   if (paragonSlot) {
@@ -413,7 +427,7 @@ function slotBlock(slot: Slot) {
   else header.append(el('span', { class: 'mr-auto' }));
 
   if (isWeapon) {
-    const sel = el('select', { class: inputCls() + ' text-xs' }) as HTMLSelectElement;
+    const sel = el('select', { class: inputCls() + ' text-xs', title: FIELD_HELP['slot_weaponType'] }) as HTMLSelectElement;
     for (const wt of WEAPON_TYPES) {
       if (wt.allowedClasses && !wt.allowedClasses.includes(build.classId)) continue;
       const opt = el('option', { value: wt.id }, wt.label);
@@ -494,7 +508,7 @@ function slotBlock(slot: Slot) {
 
   visibleAffixes.forEach(({ a, i: idx }) => {
     const row = el('div', { class: 'flex flex-wrap sm:flex-nowrap gap-2 mb-1.5 items-center min-w-0' });
-    const sel = el('select', { class: inputCls() + ' w-full sm:flex-1 min-w-0' }) as HTMLSelectElement;
+    const sel = el('select', { class: inputCls() + ' w-full sm:flex-1 min-w-0', title: FIELD_HELP['affix_bucket'] }) as HTMLSelectElement;
     const candidates = BUCKET_ORDER.filter(b => {
       // Weapon damage stays weapon-only; weapon gems get their own dedicated row UI below so we
       // never expose GEM in the dropdown to keep affixes/gems from drifting out of sync.
@@ -747,7 +761,7 @@ function scenariosCard() {
     type: 'button',
     role: 'switch',
     'aria-checked': dotOn ? 'true' : 'false',
-    title: 'DoT skills (Poison Spray, Bleed, Ignite, etc.) cannot crit. Switches into DoT tick mode: primary readout becomes the DoT tick, additive lines marked “Damage Over Time” apply, and Upgrade Priority swaps crit-centric affixes for DoT-centric ones.',
+    title: FIELD_HELP['scenario_dot'],
     class: 'group inline-flex items-center gap-2 select-none cursor-pointer text-xs font-medium ' +
       (dotOn ? 'text-emerald-300' : 'text-zinc-400 hover:text-zinc-200'),
   },
@@ -819,17 +833,18 @@ function scenariosCard() {
 
   // ----- Target chips under the readouts. The DoT mode switch lives in the card header above. -----
   const togglesRow = el('div', { class: 'pt-3 mt-2 border-t border-zinc-800/80 flex flex-wrap gap-1.5' });
-  const toggles: { key: keyof typeof scenarioState; label: string }[] = [
-    { key: 'vulnerable', label: 'Vulnerable' },
-    { key: 'elites',     label: 'Elite' },
-    { key: 'close',      label: 'Close' },
-    { key: 'distant',    label: 'Distant' },
-    { key: 'cc',         label: 'CC' },
+  const toggles: { key: keyof typeof scenarioState; label: string; help: string }[] = [
+    { key: 'vulnerable', label: 'Vulnerable', help: FIELD_HELP['scenario_vulnerable'] },
+    { key: 'elites',     label: 'Elite',      help: FIELD_HELP['scenario_elites'] },
+    { key: 'close',      label: 'Close',      help: FIELD_HELP['scenario_close'] },
+    { key: 'distant',    label: 'Distant',    help: FIELD_HELP['scenario_distant'] },
+    { key: 'cc',         label: 'CC',         help: FIELD_HELP['scenario_cc'] },
   ];
   for (const t of toggles) {
     const active = !!scenarioState[t.key];
     const chip = el('button', {
       type: 'button',
+      title: t.help,
       'aria-pressed': active ? 'true' : 'false',
       class: 'px-2.5 py-1 rounded-full text-xs font-medium transition border ' +
         (active
