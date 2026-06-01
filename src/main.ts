@@ -219,9 +219,9 @@ function nakedBaselineCard() {
     mount();
   });
   topGrid.append(field('Class', classSel, 'class'));
-  topGrid.append(field('Skill Damage % at rank 1 (e.g. 115 for Blessed Hammer)', pctInput(() => build.skillDamagePct, v => build.skillDamagePct = v, { step: 1, w: 'w-full' }), 'skillDamagePct'));
-  topGrid.append(field('Skill Ranks (naked, usually 15)', numInput(() => build.totalSkillRanks, v => build.totalSkillRanks = v, { w: 'w-full' }), 'totalSkillRanks'));
-  topGrid.append(field(`${cls.mainStat} (naked, no gear/charms)`, numInput(() => build.baseMainStat, v => build.baseMainStat = v, { w: 'w-full' }), 'baseMainStat'));
+  topGrid.append(field('Skill base damage % (rank 1)', pctInput(() => build.skillDamagePct, v => build.skillDamagePct = v, { step: 1, w: 'w-full' }), 'skillDamagePct'));
+  topGrid.append(field('Skill ranks (naked, no gear)', numInput(() => build.totalSkillRanks, v => build.totalSkillRanks = v, { w: 'w-full' }), 'totalSkillRanks'));
+  topGrid.append(field(`${cls.mainStat} (naked, incl. paragon)`, numInput(() => build.baseMainStat, v => build.baseMainStat = v, { w: 'w-full' }), 'baseMainStat'));
 
   // Skill weapon selector. In D4 an active skill consumes a SPECIFIC weapon's base damage
   // (e.g. Hammer of the Ancients uses the 2H bludgeoning slot, not the dual-wielded 1H swords).
@@ -244,7 +244,7 @@ function nakedBaselineCard() {
     build.skillWeaponSlotId = skillWepSel.value === '' ? null : skillWepSel.value;
     afterInput();
   });
-  topGrid.append(field('Skill weapon (which weapon drives this skill\u2019s damage)', skillWepSel, 'skillWeaponSlot'));
+  topGrid.append(field('Skill weapon (drives this skill\u2019s base damage)', skillWepSel, 'skillWeaponSlot'));
   card.append(topGrid);
 
   // Replace the long single-paragraph subtitle with bullet steps + a reference screenshot
@@ -274,15 +274,29 @@ function nakedBaselineCard() {
   // so the inputs all line up consistently.
   const grid = el('div', { class: 'grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2' });
   const critRow = el('div', { class: 'flex items-center gap-2' });
-  const critLabel = el('div', { class: 'flex-1 text-xs text-zinc-400 flex items-center' }, 'Critical Strike Chance');
+  const critLabel = el('div', { class: 'flex-1 text-xs text-zinc-400 flex items-center' }, 'Crit Chance % (gear + paragon)');
   { const icon = helpIcon('baseCritChance'); if (icon) critLabel.append(icon); }
   critRow.append(critLabel);
   critRow.append(pctInput(() => build.baseCritChance, v => build.baseCritChance = v, { w: 'w-24', step: 0.5 }));
   critRow.append(el('span', { class: 'text-zinc-600 text-xs' }, '%'));
   grid.append(critRow);
+  // Friendly label overrides for the additive-line rows (keyed by AdditiveLine.id).
+  // Source-of-truth labels in calc.ts match the in-game stats sheet; we add
+  // small qualifiers so users know to copy the bottom (+X% from items and Paragon) number.
+  const ADDITIVE_LABEL_OVERRIDE: Record<string, string> = {
+    crit:        'Crit Damage % (gear + paragon)',
+    vulnerable:  'Vulnerable Damage % (additive, gear+paragon)',
+    all:         'All Damage %',
+    primaryElem: 'Damage with [Element] %',
+    overTime:    'Damage Over Time % (DoT mode only)',
+    close:       'Damage vs Close %',
+    distant:     'Damage vs Distant %',
+    elites:      'Damage vs Elites %',
+    cc:          'Damage vs Crowd Controlled %',
+  };
   for (const line of build.additiveLines) {
     const row = el('div', { class: 'flex items-center gap-2' });
-    const labelDiv = el('div', { class: 'flex-1 text-xs text-zinc-400 flex items-center' }, line.label);
+    const labelDiv = el('div', { class: 'flex-1 text-xs text-zinc-400 flex items-center' }, ADDITIVE_LABEL_OVERRIDE[line.id] ?? line.label);
     const icon = helpIcon('add_' + line.id);
     if (icon) labelDiv.append(icon);
     row.append(labelDiv);
