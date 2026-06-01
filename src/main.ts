@@ -152,6 +152,7 @@ function refreshOutputs() {
     right.innerHTML = '';
     right.append(scenariosCard());
     right.append(bucketsCard());
+    right.append(breakdownCard());
     right.append(statsCard());
   }
   const footer = document.getElementById('formula-footer');
@@ -969,6 +970,111 @@ function bucketsCard() {
       el('p', {}, 'Example: CSDM bucket at +150% (×2.50). Adding x10% → +160% (×2.60). Damage gain = 2.60 / 2.50 = +4%. If your Vulnerable bucket only had +20% (×1.20), same +10% affix goes to ×1.30 → +8.3%, twice as good.'),
       el('p', {}, el('strong', {}, '+ vs x: '), '“+75% Crit Damage” joins the giant additive bucket. “x56% Crit Damage Multiplier” is its own much smaller bucket. The x version is usually 3-5× more valuable in late game.'),
     ),
+  ));
+
+  return card;
+}
+
+// ---------- OUTPUT: Damage Multiplier Breakdown ----------
+// Visualize the per-bucket multipliers compounding into the final damage number,
+// using the same scenario the Damage card is showing (target chip state + DoT toggle).
+// Bars are log-scaled so a 30x bucket doesn't crush every other bar to invisibility.
+function breakdownCard() {
+  const card = sectionCard('Damage Multiplier Breakdown', 'Each bucket as its own factor. Bars are log-scaled (a 10x factor is twice as wide as a ~3.16x). Smallest bars are usually your best upgrade opportunities.');
+
+  const c = calc(build);
+  if (c.weaponDmg === 0) {
+    card.append(el('p', { class: 'text-xs text-amber-400' }, '⚠️ Pick a weapon type to compute the breakdown.'));
+    return card;
+  }
+
+  const isDotMode = build.disableCrit;
+  const conds: any = { ...scenarioState, isDot: isDotMode };
+  const baseAdd = additiveForScenario(build, conds);
+  const critExtra = critOnlyAdditive(build);
+
+  // Effective crit factor in the average-hit sense: 1 + p_crit * (1.5 * csdm * (1+baseAdd+critExtra)/(1+baseAdd) - 1).
+  // For display we expose it as the *expected* uplift from crits on top of the non-crit hit; equals 1 in DoT mode.
+  let critFactor = 1;
+  if (!isDotMode && c.critChance > 0) {
+    const nonCritMultiplier = (1 + baseAdd);
+    const critMultiplier = (1 + baseAdd + critExtra) * 1.5 * c.csdm;
+    if (nonCritMultiplier > 0) {
+      critFactor = c.critChance * (critMultiplier / nonCritMultiplier) + (1 - c.critChance);
+    }
+  }
+
+  // Build the ordered list of factors. Skip 1x factors so the list stays meaningful (no
+  // "Non-Physical: 1.00x" noise rows).
+  type Row = { label: string; mult: number; color: string };
+  const rows: Row[] = [];
+  const push = (label: string, mult: number, color: string) => {
+    if (!isFinite(mult) || mult <= 0) return;
+    if (Math.abs(mult - 1) < 1e-6) return;
+    rows.push({ label, mult, color });
+  };
+
+  push('Skill base damage', c.skillCoef, 'bg-amber-600');
+  push('Main stat (×1 + S/divisor)', c.mainStatMult, 'bg-emerald-600');
+  push('Additive bucket (+% damage)', 1 + baseAdd, 'bg-cyan-600');
+  push('All / Element / Non-Phys', c.allm, 'bg-indigo-600');
+  if (scenarioState.vulnerable) push('Vulnerable (1.2 × VDM)', c.vdm * 1.2, 'bg-yellow-600');
+  if (!isDotMode) push('Crit (expected uplift)', critFactor, 'bg-rose-600');
+  if (isDotMode || c.dotm > 1) push('Damage Over Time', c.dotm, 'bg-emerald-500');
+  push('Custom [x]% (aspects / paragon / set)', c.extraMultProduct, 'bg-fuchsia-600');
+  push('Enemy damage factor', build.enemyDamageFactor, 'bg-zinc-500');
+
+  if (rows.length === 0) {
+    card.append(el('p', { class: 'text-xs text-zinc-500' }, 'No multipliers above 1x yet. Add some affixes and they’ll show up here.'));
+    return card;
+  }
+
+  // Log-scale the bar widths against the largest factor so bars are comparable.
+  const maxLog = Math.max(...rows.map(r => Math.log(Math.max(r.mult, 1)))) || 1;
+
+  const barsWrap = el('div', { class: 'space-y-1.5' });
+  for (const r of rows) {
+    const widthPct = Math.max(2, Math.min(100, (Math.log(Math.max(r.mult, 1)) / maxLog) * 100));
+    const lineBelow1 = r.mult < 1; // e.g. enemyDamageFactor
+    const barColor = lineBelow1 ? 'bg-zinc-500/60' : r.color;
+    const row = el('div', { class: 'text-[11px]' },
+      el('div', { class: 'flex items-baseline justify-between gap-2 mb-0.5' },
+        el('span', { class: 'text-zinc-400 truncate' }, r.label),
+        el('span', { class: 'text-zinc-200 font-mono tabular-nums shrink-0' }, `×${r.mult.toFixed(2)}`),
+      ),
+      el('div', { class: 'h-2 bg-zinc-900 rounded overflow-hidden' },
+        Object.assign(el('div', { class: `h-full ${barColor}` }), { style: `width: ${widthPct.toFixed(1)}%` } as any),
+      ),
+    );
+    barsWrap.append(row);
+  }
+  card.append(barsWrap);
+
+  // Running-product table: bucket | multiplier | cumulative product.
+  const productTable = el('table', { class: 'w-full text-[11px] mt-4 border-t border-zinc-800 pt-3' });
+  productTable.append(el('thead', {},
+    el('tr', { class: 'text-[10px] uppercase tracking-wide text-zinc-500' },
+      el('th', { class: 'text-left py-1 font-normal' }, 'Bucket'),
+      el('th', { class: 'text-right py-1 font-normal pl-2' }, 'Factor'),
+      el('th', { class: 'text-right py-1 font-normal pl-2' }, 'Running'),
+    ),
+  ));
+  const tbody = el('tbody');
+  let running = 1;
+  for (const r of rows) {
+    running *= r.mult;
+    tbody.append(el('tr', { class: 'border-b border-zinc-900' },
+      el('td', { class: 'py-1 text-zinc-300 truncate max-w-[180px]' }, r.label),
+      el('td', { class: 'py-1 text-right tabular-nums text-zinc-200 pl-2 whitespace-nowrap' }, `×${r.mult.toFixed(2)}`),
+      el('td', { class: 'py-1 text-right tabular-nums text-amber-300 pl-2 whitespace-nowrap' }, fmtBigNum(running)),
+    ));
+  }
+  productTable.append(tbody);
+  card.append(productTable);
+
+  // Weapon damage anchor row: the breakdown's running product multiplies into the weapon base.
+  card.append(el('p', { class: 'text-[10px] text-zinc-500 mt-2 leading-snug' },
+    `Multipliers above compound on top of base weapon damage (${fmtNum(c.weaponDmg)}). Hit / Crit / DoT numbers in the Damage card apply this product to that base.`,
   ));
 
   return card;
