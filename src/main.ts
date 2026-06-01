@@ -10,7 +10,7 @@ import {
   type Build, type Bucket, type Slot,
 } from './calc';
 import { loadInitialBuild, persist, exportJson, importJson, cloneBuild, buildShareUrl, importJsonObject } from './state';
-import { FIELD_HELP, helpIcon } from './help';
+import { FIELD_HELP, helpIcon, helpModalHTML } from './help';
 
 let build: Build = loadInitialBuild();
 
@@ -179,7 +179,7 @@ function renderHeader() {
         ),
       ),
       el('div', { class: 'flex items-center gap-2 flex-wrap' },
-        snapshotBtn(), restoreSnapshotBtn(), loadSampleBtn(), jsonBtn(), copyShareBtn(), resetBtn(),
+        helpBtn(), snapshotBtn(), restoreSnapshotBtn(), loadSampleBtn(), jsonBtn(), copyShareBtn(), resetBtn(),
       ),
     ),
   );
@@ -1529,6 +1529,48 @@ function openJsonDialog() {
   document.body.append(overlay);
   // Focus textarea so the user can immediately edit / select-all.
   setTimeout(() => ta.focus(), 0);
+}
+
+function helpBtn() {
+  const btn = el('button', { class: 'text-xs px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 inline-flex items-center gap-1', title: 'How this calculator works + per-field reference' },
+    el('span', {}, '❔'),
+    el('span', {}, 'Help'),
+  );
+  btn.addEventListener('click', () => openHelpDialog());
+  return btn;
+}
+
+function openHelpDialog() {
+  const overlay = el('div', { class: 'fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4' });
+  const panel = el('div', { class: 'bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl w-full max-w-3xl max-h-[85vh] flex flex-col' });
+
+  const header = el('div', { class: 'flex items-center justify-between px-4 py-3 border-b border-zinc-800 shrink-0' },
+    el('h3', { class: 'text-sm font-medium text-zinc-200' }, '❔ D4 Bucket Calc — how it works'),
+    Object.assign(el('button', { class: 'text-zinc-500 hover:text-zinc-200 text-lg leading-none', 'aria-label': 'Close' }), { textContent: '✕' }),
+  );
+  const closeBtn = header.lastChild as HTMLElement;
+
+  const body = el('div', { class: 'flex-1 min-h-0 overflow-y-auto p-5 text-sm' });
+  body.innerHTML = helpModalHTML();
+
+  const footer = el('div', { class: 'flex items-center justify-end gap-2 px-4 py-3 border-t border-zinc-800 shrink-0' });
+  const okBtn = el('button', { class: 'text-xs px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-zinc-950 font-medium' }, 'Got it');
+  footer.append(okBtn);
+
+  panel.append(header, body, footer);
+  overlay.append(panel);
+
+  const close = () => {
+    overlay.remove();
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+  closeBtn.addEventListener('click', close);
+  okBtn.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', onKey);
+
+  document.body.append(overlay);
 }
 
 function resetBtn() {
