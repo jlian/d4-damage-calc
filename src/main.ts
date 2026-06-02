@@ -10,6 +10,7 @@ import {
   type Build, type Bucket, type Slot,
 } from './calc';
 import { loadInitialBuild, persist, exportJson, importJson, cloneBuild, buildShareUrl, importJsonObject } from './state';
+import { FIELD_HELP, helpIcon, helpModalHTML } from './help';
 
 let build: Build = loadInitialBuild();
 
@@ -89,9 +90,15 @@ function textInput(getValue: () => string, setValue: (v: string) => void, opts: 
   return inp;
 }
 
-function field(label: string, control: HTMLElement) {
+function field(label: string, control: HTMLElement, helpKey?: string) {
   const wrap = el('label', { class: 'block' });
-  wrap.append(el('div', { class: 'text-xs text-zinc-500 mb-1' }, label));
+  const labelRow = el('div', { class: 'text-xs text-zinc-500 mb-1 flex items-center' });
+  labelRow.append(label);
+  if (helpKey) {
+    const icon = helpIcon(helpKey);
+    if (icon) labelRow.append(icon);
+  }
+  wrap.append(labelRow);
   control.classList.add('w-full');
   wrap.append(control);
   return wrap;
@@ -145,6 +152,7 @@ function refreshOutputs() {
     right.innerHTML = '';
     right.append(scenariosCard());
     right.append(bucketsCard());
+    right.append(breakdownCard());
     right.append(statsCard());
   }
   const footer = document.getElementById('formula-footer');
@@ -171,7 +179,7 @@ function renderHeader() {
         ),
       ),
       el('div', { class: 'flex items-center gap-2 flex-wrap' },
-        snapshotBtn(), restoreSnapshotBtn(), loadSampleBtn(), jsonBtn(), copyShareBtn(), resetBtn(),
+        helpBtn(), snapshotBtn(), restoreSnapshotBtn(), loadSampleBtn(), jsonBtn(), copyShareBtn(), resetBtn(),
       ),
     ),
   );
@@ -211,10 +219,10 @@ function nakedBaselineCard() {
     persist(build);
     mount();
   });
-  topGrid.append(field('Class', classSel));
-  topGrid.append(field('Skill Damage % at rank 1 (e.g. 115 for Blessed Hammer)', pctInput(() => build.skillDamagePct, v => build.skillDamagePct = v, { step: 1, w: 'w-full' })));
-  topGrid.append(field('Skill Ranks (naked, usually 15)', numInput(() => build.totalSkillRanks, v => build.totalSkillRanks = v, { w: 'w-full' })));
-  topGrid.append(field(`${cls.mainStat} (naked, no gear/charms)`, numInput(() => build.baseMainStat, v => build.baseMainStat = v, { w: 'w-full' })));
+  topGrid.append(field('Class', classSel, 'class'));
+  topGrid.append(field('Skill base damage % (rank 1)', pctInput(() => build.skillDamagePct, v => build.skillDamagePct = v, { step: 1, w: 'w-full' }), 'skillDamagePct'));
+  topGrid.append(field('Skill ranks (naked, no gear)', numInput(() => build.totalSkillRanks, v => build.totalSkillRanks = v, { w: 'w-full' }), 'totalSkillRanks'));
+  topGrid.append(field(`${cls.mainStat} (naked, incl. paragon)`, numInput(() => build.baseMainStat, v => build.baseMainStat = v, { w: 'w-full' }), 'baseMainStat'));
 
   // Skill weapon selector. In D4 an active skill consumes a SPECIFIC weapon's base damage
   // (e.g. Hammer of the Ancients uses the 2H bludgeoning slot, not the dual-wielded 1H swords).
@@ -237,7 +245,7 @@ function nakedBaselineCard() {
     build.skillWeaponSlotId = skillWepSel.value === '' ? null : skillWepSel.value;
     afterInput();
   });
-  topGrid.append(field('Skill weapon (which weapon drives this skill\u2019s damage)', skillWepSel));
+  topGrid.append(field('Skill weapon (drives this skill\u2019s base damage)', skillWepSel, 'skillWeaponSlot'));
   card.append(topGrid);
 
   // Replace the long single-paragraph subtitle with bullet steps + a reference screenshot
@@ -267,13 +275,32 @@ function nakedBaselineCard() {
   // so the inputs all line up consistently.
   const grid = el('div', { class: 'grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2' });
   const critRow = el('div', { class: 'flex items-center gap-2' });
-  critRow.append(el('div', { class: 'flex-1 text-xs text-zinc-400' }, 'Critical Strike Chance'));
+  const critLabel = el('div', { class: 'flex-1 text-xs text-zinc-400 flex items-center' }, 'Crit Chance % (gear + paragon)');
+  { const icon = helpIcon('baseCritChance'); if (icon) critLabel.append(icon); }
+  critRow.append(critLabel);
   critRow.append(pctInput(() => build.baseCritChance, v => build.baseCritChance = v, { w: 'w-24', step: 0.5 }));
   critRow.append(el('span', { class: 'text-zinc-600 text-xs' }, '%'));
   grid.append(critRow);
+  // Friendly label overrides for the additive-line rows (keyed by AdditiveLine.id).
+  // Source-of-truth labels in calc.ts match the in-game stats sheet; we add
+  // small qualifiers so users know to copy the bottom (+X% from items and Paragon) number.
+  const ADDITIVE_LABEL_OVERRIDE: Record<string, string> = {
+    crit:        'Crit Damage % (gear + paragon)',
+    vulnerable:  'Vulnerable Damage % (additive, gear+paragon)',
+    all:         'All Damage %',
+    primaryElem: 'Damage with [Element] %',
+    overTime:    'Damage Over Time % (DoT mode only)',
+    close:       'Damage vs Close %',
+    distant:     'Damage vs Distant %',
+    elites:      'Damage vs Elites %',
+    cc:          'Damage vs Crowd Controlled %',
+  };
   for (const line of build.additiveLines) {
     const row = el('div', { class: 'flex items-center gap-2' });
-    row.append(el('div', { class: 'flex-1 text-xs text-zinc-400' }, line.label));
+    const labelDiv = el('div', { class: 'flex-1 text-xs text-zinc-400 flex items-center' }, ADDITIVE_LABEL_OVERRIDE[line.id] ?? line.label);
+    const icon = helpIcon('add_' + line.id);
+    if (icon) labelDiv.append(icon);
+    row.append(labelDiv);
     row.append(pctInput(() => line.value, v => line.value = v, { w: 'w-24' }));
     row.append(el('span', { class: 'text-zinc-600 text-xs' }, '%'));
     grid.append(row);
@@ -281,7 +308,9 @@ function nakedBaselineCard() {
   card.append(grid);
 
   // Custom additive entries: for additive stat lines that exist on the stats sheet but aren't in our default list (e.g., Rogue's Damage with Imbued, Damage vs Distant)
-  card.append(el('h4', { class: 'text-xs uppercase tracking-wide text-zinc-500 mt-4 mb-2' }, 'Other additive lines'));
+  const otherAddHeader = el('h4', { class: 'text-xs uppercase tracking-wide text-zinc-500 mt-4 mb-2 flex items-center' }, 'Other additive lines');
+  { const icon = helpIcon('add_custom'); if (icon) otherAddHeader.append(icon); }
+  card.append(otherAddHeader);
   card.append(el('p', { class: 'text-xs text-zinc-500 mb-2' }, 'For additive damage lines on your in-game stats sheet that aren’t in the default list above (like “Damage vs Distant”, “Damage vs Healthy”, “Damage vs Crowd Controlled”, etc.). Same rule: copy the BOTTOM tooltip number from the stats sheet. Anything you add here is treated as always-on and gets included in the result, even if it’s technically conditional in-game.'));
   const paragonSlot = build.slots.find(s => s.id === 'paragon');
   if (paragonSlot) {
@@ -413,7 +442,7 @@ function slotBlock(slot: Slot) {
   else header.append(el('span', { class: 'mr-auto' }));
 
   if (isWeapon) {
-    const sel = el('select', { class: inputCls() + ' text-xs' }) as HTMLSelectElement;
+    const sel = el('select', { class: inputCls() + ' text-xs', title: FIELD_HELP['slot_weaponType'] }) as HTMLSelectElement;
     for (const wt of WEAPON_TYPES) {
       if (wt.allowedClasses && !wt.allowedClasses.includes(build.classId)) continue;
       const opt = el('option', { value: wt.id }, wt.label);
@@ -494,7 +523,7 @@ function slotBlock(slot: Slot) {
 
   visibleAffixes.forEach(({ a, i: idx }) => {
     const row = el('div', { class: 'flex flex-wrap sm:flex-nowrap gap-2 mb-1.5 items-center min-w-0' });
-    const sel = el('select', { class: inputCls() + ' w-full sm:flex-1 min-w-0' }) as HTMLSelectElement;
+    const sel = el('select', { class: inputCls() + ' w-full sm:flex-1 min-w-0', title: FIELD_HELP['affix_bucket'] }) as HTMLSelectElement;
     const candidates = BUCKET_ORDER.filter(b => {
       // Weapon damage stays weapon-only; weapon gems get their own dedicated row UI below so we
       // never expose GEM in the dropdown to keep affixes/gems from drifting out of sync.
@@ -747,7 +776,7 @@ function scenariosCard() {
     type: 'button',
     role: 'switch',
     'aria-checked': dotOn ? 'true' : 'false',
-    title: 'DoT skills (Poison Spray, Bleed, Ignite, etc.) cannot crit. Switches into DoT tick mode: primary readout becomes the DoT tick, additive lines marked “Damage Over Time” apply, and Upgrade Priority swaps crit-centric affixes for DoT-centric ones.',
+    title: FIELD_HELP['scenario_dot'],
     class: 'group inline-flex items-center gap-2 select-none cursor-pointer text-xs font-medium ' +
       (dotOn ? 'text-emerald-300' : 'text-zinc-400 hover:text-zinc-200'),
   },
@@ -819,17 +848,18 @@ function scenariosCard() {
 
   // ----- Target chips under the readouts. The DoT mode switch lives in the card header above. -----
   const togglesRow = el('div', { class: 'pt-3 mt-2 border-t border-zinc-800/80 flex flex-wrap gap-1.5' });
-  const toggles: { key: keyof typeof scenarioState; label: string }[] = [
-    { key: 'vulnerable', label: 'Vulnerable' },
-    { key: 'elites',     label: 'Elite' },
-    { key: 'close',      label: 'Close' },
-    { key: 'distant',    label: 'Distant' },
-    { key: 'cc',         label: 'CC' },
+  const toggles: { key: keyof typeof scenarioState; label: string; help: string }[] = [
+    { key: 'vulnerable', label: 'Vulnerable', help: FIELD_HELP['scenario_vulnerable'] },
+    { key: 'elites',     label: 'Elite',      help: FIELD_HELP['scenario_elites'] },
+    { key: 'close',      label: 'Close',      help: FIELD_HELP['scenario_close'] },
+    { key: 'distant',    label: 'Distant',    help: FIELD_HELP['scenario_distant'] },
+    { key: 'cc',         label: 'CC',         help: FIELD_HELP['scenario_cc'] },
   ];
   for (const t of toggles) {
     const active = !!scenarioState[t.key];
     const chip = el('button', {
       type: 'button',
+      title: t.help,
       'aria-pressed': active ? 'true' : 'false',
       class: 'px-2.5 py-1 rounded-full text-xs font-medium transition border ' +
         (active
@@ -940,6 +970,111 @@ function bucketsCard() {
       el('p', {}, 'Example: CSDM bucket at +150% (×2.50). Adding x10% → +160% (×2.60). Damage gain = 2.60 / 2.50 = +4%. If your Vulnerable bucket only had +20% (×1.20), same +10% affix goes to ×1.30 → +8.3%, twice as good.'),
       el('p', {}, el('strong', {}, '+ vs x: '), '“+75% Crit Damage” joins the giant additive bucket. “x56% Crit Damage Multiplier” is its own much smaller bucket. The x version is usually 3-5× more valuable in late game.'),
     ),
+  ));
+
+  return card;
+}
+
+// ---------- OUTPUT: Damage Multiplier Breakdown ----------
+// Visualize the per-bucket multipliers compounding into the final damage number,
+// using the same scenario the Damage card is showing (target chip state + DoT toggle).
+// Bars are log-scaled so a 30x bucket doesn't crush every other bar to invisibility.
+function breakdownCard() {
+  const card = sectionCard('Damage Multiplier Breakdown', 'Each bucket as its own factor. Bars are log-scaled (a 10x factor is twice as wide as a ~3.16x). Smallest bars are usually your best upgrade opportunities.');
+
+  const c = calc(build);
+  if (c.weaponDmg === 0) {
+    card.append(el('p', { class: 'text-xs text-amber-400' }, '⚠️ Pick a weapon type to compute the breakdown.'));
+    return card;
+  }
+
+  const isDotMode = build.disableCrit;
+  const conds: any = { ...scenarioState, isDot: isDotMode };
+  const baseAdd = additiveForScenario(build, conds);
+  const critExtra = critOnlyAdditive(build);
+
+  // Effective crit factor in the average-hit sense: 1 + p_crit * (1.5 * csdm * (1+baseAdd+critExtra)/(1+baseAdd) - 1).
+  // For display we expose it as the *expected* uplift from crits on top of the non-crit hit; equals 1 in DoT mode.
+  let critFactor = 1;
+  if (!isDotMode && c.critChance > 0) {
+    const nonCritMultiplier = (1 + baseAdd);
+    const critMultiplier = (1 + baseAdd + critExtra) * 1.5 * c.csdm;
+    if (nonCritMultiplier > 0) {
+      critFactor = c.critChance * (critMultiplier / nonCritMultiplier) + (1 - c.critChance);
+    }
+  }
+
+  // Build the ordered list of factors. Skip 1x factors so the list stays meaningful (no
+  // "Non-Physical: 1.00x" noise rows).
+  type Row = { label: string; mult: number; color: string };
+  const rows: Row[] = [];
+  const push = (label: string, mult: number, color: string) => {
+    if (!isFinite(mult) || mult <= 0) return;
+    if (Math.abs(mult - 1) < 1e-6) return;
+    rows.push({ label, mult, color });
+  };
+
+  push('Skill base damage', c.skillCoef, 'bg-amber-600');
+  push('Main stat (×1 + S/divisor)', c.mainStatMult, 'bg-emerald-600');
+  push('Additive bucket (+% damage)', 1 + baseAdd, 'bg-cyan-600');
+  push('All / Element / Non-Phys', c.allm, 'bg-indigo-600');
+  if (scenarioState.vulnerable) push('Vulnerable (1.2 × VDM)', c.vdm * 1.2, 'bg-yellow-600');
+  if (!isDotMode) push('Crit (expected uplift)', critFactor, 'bg-rose-600');
+  if (isDotMode || c.dotm > 1) push('Damage Over Time', c.dotm, 'bg-emerald-500');
+  push('Custom [x]% (aspects / paragon / set)', c.extraMultProduct, 'bg-fuchsia-600');
+  push('Enemy damage factor', build.enemyDamageFactor, 'bg-zinc-500');
+
+  if (rows.length === 0) {
+    card.append(el('p', { class: 'text-xs text-zinc-500' }, 'No multipliers above 1x yet. Add some affixes and they’ll show up here.'));
+    return card;
+  }
+
+  // Log-scale the bar widths against the largest factor so bars are comparable.
+  const maxLog = Math.max(...rows.map(r => Math.log(Math.max(r.mult, 1)))) || 1;
+
+  const barsWrap = el('div', { class: 'space-y-1.5' });
+  for (const r of rows) {
+    const widthPct = Math.max(2, Math.min(100, (Math.log(Math.max(r.mult, 1)) / maxLog) * 100));
+    const lineBelow1 = r.mult < 1; // e.g. enemyDamageFactor
+    const barColor = lineBelow1 ? 'bg-zinc-500/60' : r.color;
+    const row = el('div', { class: 'text-[11px]' },
+      el('div', { class: 'flex items-baseline justify-between gap-2 mb-0.5' },
+        el('span', { class: 'text-zinc-400 truncate' }, r.label),
+        el('span', { class: 'text-zinc-200 font-mono tabular-nums shrink-0' }, `×${r.mult.toFixed(2)}`),
+      ),
+      el('div', { class: 'h-2 bg-zinc-900 rounded overflow-hidden' },
+        Object.assign(el('div', { class: `h-full ${barColor}` }), { style: `width: ${widthPct.toFixed(1)}%` } as any),
+      ),
+    );
+    barsWrap.append(row);
+  }
+  card.append(barsWrap);
+
+  // Running-product table: bucket | multiplier | cumulative product.
+  const productTable = el('table', { class: 'w-full text-[11px] mt-4 border-t border-zinc-800 pt-3' });
+  productTable.append(el('thead', {},
+    el('tr', { class: 'text-[10px] uppercase tracking-wide text-zinc-500' },
+      el('th', { class: 'text-left py-1 font-normal' }, 'Bucket'),
+      el('th', { class: 'text-right py-1 font-normal pl-2' }, 'Factor'),
+      el('th', { class: 'text-right py-1 font-normal pl-2' }, 'Running'),
+    ),
+  ));
+  const tbody = el('tbody');
+  let running = 1;
+  for (const r of rows) {
+    running *= r.mult;
+    tbody.append(el('tr', { class: 'border-b border-zinc-900' },
+      el('td', { class: 'py-1 text-zinc-300 truncate max-w-[180px]' }, r.label),
+      el('td', { class: 'py-1 text-right tabular-nums text-zinc-200 pl-2 whitespace-nowrap' }, `×${r.mult.toFixed(2)}`),
+      el('td', { class: 'py-1 text-right tabular-nums text-amber-300 pl-2 whitespace-nowrap' }, fmtBigNum(running)),
+    ));
+  }
+  productTable.append(tbody);
+  card.append(productTable);
+
+  // Weapon damage anchor row: the breakdown's running product multiplies into the weapon base.
+  card.append(el('p', { class: 'text-[10px] text-zinc-500 mt-2 leading-snug' },
+    `Multipliers above compound on top of base weapon damage (${fmtNum(c.weaponDmg)}). Hit / Crit / DoT numbers in the Damage card apply this product to that base.`,
   ));
 
   return card;
@@ -1394,6 +1529,48 @@ function openJsonDialog() {
   document.body.append(overlay);
   // Focus textarea so the user can immediately edit / select-all.
   setTimeout(() => ta.focus(), 0);
+}
+
+function helpBtn() {
+  const btn = el('button', { class: 'text-xs px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 inline-flex items-center gap-1', title: 'How this calculator works + per-field reference' },
+    el('span', {}, '❔'),
+    el('span', {}, 'Help'),
+  );
+  btn.addEventListener('click', () => openHelpDialog());
+  return btn;
+}
+
+function openHelpDialog() {
+  const overlay = el('div', { class: 'fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4' });
+  const panel = el('div', { class: 'bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl w-full max-w-3xl max-h-[85vh] flex flex-col' });
+
+  const header = el('div', { class: 'flex items-center justify-between px-4 py-3 border-b border-zinc-800 shrink-0' },
+    el('h3', { class: 'text-sm font-medium text-zinc-200' }, '❔ D4 Bucket Calc — how it works'),
+    Object.assign(el('button', { class: 'text-zinc-500 hover:text-zinc-200 text-lg leading-none', 'aria-label': 'Close' }), { textContent: '✕' }),
+  );
+  const closeBtn = header.lastChild as HTMLElement;
+
+  const body = el('div', { class: 'flex-1 min-h-0 overflow-y-auto p-5 text-sm' });
+  body.innerHTML = helpModalHTML();
+
+  const footer = el('div', { class: 'flex items-center justify-end gap-2 px-4 py-3 border-t border-zinc-800 shrink-0' });
+  const okBtn = el('button', { class: 'text-xs px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-zinc-950 font-medium' }, 'Got it');
+  footer.append(okBtn);
+
+  panel.append(header, body, footer);
+  overlay.append(panel);
+
+  const close = () => {
+    overlay.remove();
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+  closeBtn.addEventListener('click', close);
+  okBtn.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', onKey);
+
+  document.body.append(overlay);
 }
 
 function resetBtn() {
