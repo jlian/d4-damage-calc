@@ -9,7 +9,7 @@ import {
   WEAPON_TYPES, weaponTypeById,
   type Build, type Bucket, type Slot,
 } from './calc';
-import { loadInitialBuild, persist, exportJson, importJson, cloneBuild, buildShareUrl, importJsonObject } from './state';
+import { loadInitialBuild, persist, exportJson, importJson, cloneBuild, importJsonObject } from './state';
 import { FIELD_HELP, helpIcon, helpModalHTML } from './help';
 
 let build: Build = loadInitialBuild();
@@ -179,7 +179,7 @@ function renderHeader() {
         ),
       ),
       el('div', { class: 'flex items-center gap-2 flex-wrap' },
-        helpBtn(), snapshotBtn(), restoreSnapshotBtn(), loadSampleBtn(), jsonBtn(), copyShareBtn(), resetBtn(),
+        helpBtn(), snapshotBtn(), restoreSnapshotBtn(), loadSampleBtn(), jsonBtn(), resetBtn(),
       ),
     ),
   );
@@ -1390,18 +1390,6 @@ function katexBlock(tex: string): HTMLElement {
 }
 
 // ---------- header buttons ----------
-function copyShareBtn() {
-  const btn = el('button', { class: 'text-xs px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-zinc-950 font-medium', title: 'Copy a shareable link that encodes the current build' }, 'Copy Share Link');
-  btn.addEventListener('click', async () => {
-    const url = buildShareUrl(build);
-    try { await navigator.clipboard.writeText(url); }
-    catch { prompt('Copy this link:', url); }
-    const old = btn.textContent;
-    btn.textContent = 'Copied!';
-    setTimeout(() => { btn.textContent = old; }, 1500);
-  });
-  return btn;
-}
 
 function snapshotBtn() {
   // Single primary action: "Save Build". When something has changed since last save,
@@ -1578,11 +1566,9 @@ function resetBtn() {
   btn.addEventListener('click', () => {
     if (!confirm('Reset to defaults?')) return;
     localStorage.removeItem('d4bc.build');
-    window.location.hash = '';
     window.location.reload();
   });
   return btn;
 }
 
-window.addEventListener('hashchange', () => { build = loadInitialBuild(); mount(); });
 mount();
