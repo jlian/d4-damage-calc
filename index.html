@@ -4,11 +4,71 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ctext y='20' font-size='20'%3E%E2%9A%94%EF%B8%8F%3C/text%3E%3C/svg%3E" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Diablo 4 (Lord of Hatred) Damage Calculator</title>
-    <meta name="description" content="Diablo 4 damage calculator. Find your highest-leverage stat slots. Port of Avarilyn's spreadsheet." />
+    <meta name="theme-color" content="#09090b" />
+
+    <title>D4 Damage Calculator - Diablo 4 Bucket Calc (Avarilyn's spreadsheet, web port)</title>
+    <meta name="description" content="Free Diablo 4 damage calculator. Web port of Avarilyn's bucket spreadsheet. Enter your class, skill, gear affixes and paragon to see live damage, find your highest-leverage stat upgrades, and compare gear options across all damage buckets (additive, vulnerable, crit, weapon, multipliers)." />
+    <meta name="keywords" content="diablo 4 damage calculator, d4 damage calc, d4 bucket calculator, avarilyn calculator, diablo 4 dps calculator, lord of hatred calculator, diablo 4 stat priority, d4 multiplier buckets" />
+    <link rel="canonical" href="https://jlian.github.io/d4-damage-calc/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://jlian.github.io/d4-damage-calc/" />
+    <meta property="og:title" content="D4 Damage Calculator - Diablo 4 Bucket Calc" />
+    <meta property="og:description" content="Free Diablo 4 damage calculator. Web port of Avarilyn's bucket spreadsheet. Live damage, stat-priority breakdown, and gear comparison across every damage bucket." />
+    <meta property="og:site_name" content="D4 Damage Calculator" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="D4 Damage Calculator - Diablo 4 Bucket Calc" />
+    <meta name="twitter:description" content="Free Diablo 4 damage calculator. Web port of Avarilyn's bucket spreadsheet. Live damage and stat-priority breakdown." />
+
+    <!-- Structured data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "D4 Damage Calculator",
+      "alternateName": ["Diablo 4 Bucket Calculator", "Avarilyn Calculator Web Port"],
+      "url": "https://jlian.github.io/d4-damage-calc/",
+      "applicationCategory": "GameApplication",
+      "operatingSystem": "Any (browser)",
+      "browserRequirements": "Requires JavaScript",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "description": "Free Diablo 4 damage calculator. Web port of Avarilyn's bucket spreadsheet. Enter class, skill, gear affixes and paragon to see live damage, find the highest-leverage stat upgrades, and compare gear options across all damage buckets.",
+      "creator": { "@type": "Person", "name": "jlian", "url": "https://github.com/jlian" },
+      "isBasedOn": { "@type": "CreativeWork", "name": "Avarilyn's Diablo 4 damage spreadsheet", "creator": { "@type": "Person", "name": "Avarilyn", "url": "https://www.youtube.com/@avarilyn" } },
+      "about": { "@type": "VideoGame", "name": "Diablo IV", "alternateName": "Diablo 4" }
+    }
+    </script>
   </head>
   <body class="bg-zinc-950 text-zinc-100 min-h-screen">
-    <div id="app"></div>
+    <div id="app">
+      <!-- SEO fallback content. The SPA wipes #app on mount, so this is only rendered for crawlers and pre-hydration paint. -->
+      <header style="max-width:64rem;margin:0 auto;padding:1.5rem 1rem 0;">
+        <h1 style="font-size:1.75rem;font-weight:700;">Diablo 4 Damage Calculator</h1>
+        <p style="opacity:.8;margin-top:.5rem;">A free web port of <a href="https://www.youtube.com/@avarilyn" style="color:#f59e0b;">Avarilyn's</a> Diablo 4 damage bucket spreadsheet.</p>
+      </header>
+      <main style="max-width:64rem;margin:0 auto;padding:1rem;">
+        <section>
+          <h2 style="font-size:1.25rem;font-weight:600;margin-top:1.5rem;">What this is</h2>
+          <p>Enter your class, skill, baseline naked stats, gear affixes and paragon points. The calculator shows your live damage, breaks it down across every Diablo 4 damage bucket (additive, vulnerable, critical strike, weapon damage, and multiplier sources), and ranks which stat upgrade gives you the biggest leverage right now.</p>
+          <h2 style="font-size:1.25rem;font-weight:600;margin-top:1.5rem;">Features</h2>
+          <ul>
+            <li>Same math as Avarilyn's spreadsheet, in your browser.</li>
+            <li>Per-bucket multiplier breakdown with bars and running products.</li>
+            <li>Upgrade priority: which affix point is worth the most damage.</li>
+            <li>Snapshot a build, swap gear, compare side by side.</li>
+            <li>Saves locally. Export/import builds as JSON. No account, no tracking.</li>
+          </ul>
+          <h2 style="font-size:1.25rem;font-weight:600;margin-top:1.5rem;">Credits</h2>
+          <p>Bucket math and methodology by <a href="https://www.youtube.com/@avarilyn" style="color:#f59e0b;">Avarilyn</a>. Web port by <a href="https://github.com/jlian" style="color:#f59e0b;">jlian</a>. Source on <a href="https://github.com/jlian/d4-damage-calc" style="color:#f59e0b;">GitHub</a>.</p>
+          <noscript>
+            <p style="margin-top:1.5rem;color:#fca5a5;"><strong>JavaScript is required to use the interactive calculator.</strong> Please enable JavaScript and reload.</p>
+          </noscript>
+        </section>
+      </main>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
