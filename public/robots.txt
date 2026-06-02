@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://jlian.github.io/d4-damage-calc/sitemap.xml
