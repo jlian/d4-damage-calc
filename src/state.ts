@@ -1,4 +1,3 @@
-import pako from 'pako';
 import { DEFAULT_BUILD, DEFAULT_ADDITIVE_LINES, cloneDefaultLines, BUCKET_META, CLASSES, WEAPON_TYPES, type Build, type AdditiveLine } from './calc';
 
 const STORAGE_KEY = 'd4bc.build';
@@ -136,26 +135,6 @@ export function loadLocal(): Build | null {
   } catch { return null; }
 }
 
-export function encodeHash(b: Build): string {
-  const json = JSON.stringify(buildToSerial(b));
-  const compressed = pako.deflate(json);
-  let bin = '';
-  for (let i = 0; i < compressed.length; i++) bin += String.fromCharCode(compressed[i]);
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-export function decodeHash(hash: string): Build | null {
-  try {
-    let b64 = hash.replace(/-/g, '+').replace(/_/g, '/');
-    while (b64.length % 4) b64 += '=';
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const json = pako.inflate(bytes, { to: 'string' });
-    return serialToBuild(JSON.parse(json));
-  } catch { return null; }
-}
-
 export function exportJson(b: Build): string {
   return JSON.stringify(buildToSerial(b), null, 2);
 }
@@ -170,11 +149,6 @@ export function importJsonObject(obj: any): Build | null {
 }
 
 export function loadInitialBuild(): Build {
-  const hash = window.location.hash.replace(/^#/, '');
-  if (hash) {
-    const b = decodeHash(hash);
-    if (b) return b;
-  }
   return loadLocal() ?? defaultBuild();
 }
 
@@ -186,12 +160,4 @@ export function cloneBuild(b: Build): Build {
 
 export function persist(b: Build) {
   saveLocal(b);
-  const h = encodeHash(b);
-  history.replaceState(null, '', '#' + h);
-}
-
-export function buildShareUrl(b: Build): string {
-  const h = encodeHash(b);
-  const base = window.location.origin + window.location.pathname + window.location.search;
-  return base + '#' + h;
 }
